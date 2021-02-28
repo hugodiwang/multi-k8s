@@ -1,0 +1,38 @@
+sudo: required
+
+services:
+  - docker
+
+#env: # for updating the images
+#  global:
+#    - SHA=$(git rev-parse HEAD)
+#    - CLOUDSDK_CORE_DISABLE_PROMPTS = 1 FOR YES WHEN WARNING POP
+
+before_install:
+  - openssl aes-256-cbc -K $encrypted_9f3b5599b056_key -iv $encrypted_9f3b5599b056_iv -in service-account.json.enc -out service-account.json -d
+  # install google could sdk in local instance's dev/null
+  - curl https://sdk.cloud.google.com | bash > /dev/null;
+  # apply some configs
+  - source $HOME/google-cloud-sdk/path.bash.inc
+  # install kubectl
+  - gcloud components update kubectl 
+  # login
+  - gcloud auth activate-service-account --key-file service-acount.json
+  - gcloud config set project multi-k8s-306201
+  - gcloud config set compute/zone us-central1-c
+  - gcloud container clusters get-credentials multi-cluster
+  # Log in to the docker CLI set env in traivs first
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_ID" --password-stdin
+  # build docker file and generate images
+  - docker build -t hugodiwang/react-test -f ./client/Dockerfile.dev ./client
+
+script:
+  - docker run -e CI=true hugodiwang/react-test npm test
+
+
+deploy:
+  provider: script
+  script: bash ./deploy.sh
+  on:
+    branch: master
+
